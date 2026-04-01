@@ -50,6 +50,11 @@
     .info-row:last-child { border-bottom: none; }
     .info-key { color: #777; }
     .info-val { font-weight: 500; color: #1a1a2e; }
+    .mapping-list { margin-top: 8px; }
+    .mapping-row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #f5f5f5; font-size: 13px; }
+    .mapping-row:last-child { border-bottom: none; }
+    .mapping-tag { font-family: 'Courier New', monospace; font-weight: 600; color: #1a1a2e; }
+    .mapping-did { color: #888; font-size: 12px; }
     footer { text-align: center; font-size: 11px; color: #ccc; padding: 20px 16px; }
   </style>
 </head>
@@ -94,8 +99,12 @@
       <p>Format: TAG;URL — eine Zeile pro Flansch</p>
     </label>
     <div class="import-status" id="import-status">
-      Noch keine Datei geladen. Testweise ist <strong>23-FL-21001</strong> bereits hinterlegt.
+      CSV importieren um weitere TAGs hinzuzufügen oder bestehende zu überschreiben.
     </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Aktuell hinterlegte TAGs <span style="font-weight:400;color:#aaa;font-size:11px;" id="map-count"></span></div>
+    <div class="mapping-list" id="mapping-list"></div>
   </div>
   <div class="card">
     <div class="card-title">CSV-Format</div>
@@ -117,14 +126,22 @@
     <div class="info-row"><span class="info-key">Letzter Import</span><span class="info-val" id="info-import">—</span></div>
     <div class="info-row"><span class="info-key">Offline-fähig</span><span class="info-val">Ja (PWA)</span></div>
     <div class="info-row"><span class="info-key">QR-Bibliothek</span><span class="info-val">html5-qrcode v2.3.8</span></div>
+    <div class="info-row"><span class="info-key">Version</span><span class="info-val">v6.0</span></div>
   </div>
 </div>
 
-<footer>Flansch QR-Scanner · EKB StoragEtzel · v5.0</footer>
+<footer>Flansch QR-Scanner · EKB StoragEtzel · v6.0</footer>
 
 <script>
+const BASE = "https://ekb.docuware.cloud/DocuWare/Platform/WebClient/b8a35583-b1ca-44a5-9c01-3e9475446889/Integration?fc=1acb0770-af1b-4cac-af35-387d2e5a0736&did=";
+const SUFFIX = "&p=V";
+
 const mapping = {
-  "23-FL-21001": "https://ekb.docuware.cloud/DocuWare/Platform/WebClient/b8a35583-b1ca-44a5-9c01-3e9475446889/Integration?fc=1acb0770-af1b-4cac-af35-387d2e5a0736&did=55&p=V"
+  "23-FL-11055": BASE + "59" + SUFFIX,
+  "23-FL-12006": BASE + "58" + SUFFIX,
+  "23-FL-10008": BASE + "57" + SUFFIX,
+  "23-FL-10012": BASE + "56" + SUFFIX,
+  "23-FL-21001": BASE + "55" + SUFFIX,
 };
 
 let scanner = null;
@@ -134,6 +151,21 @@ function updateCount() {
   const n = Object.keys(mapping).length;
   document.getElementById('entry-count').textContent = n + ' TAGs';
   document.getElementById('info-count').textContent = n;
+  document.getElementById('map-count').textContent = n + ' Einträge';
+  renderMappingList();
+}
+
+function renderMappingList() {
+  const list = document.getElementById('mapping-list');
+  const entries = Object.entries(mapping);
+  if (entries.length === 0) {
+    list.innerHTML = '<p style="font-size:13px;color:#aaa;">Keine Einträge vorhanden.</p>';
+    return;
+  }
+  list.innerHTML = entries.map(([tag, url]) => {
+    const did = url.match(/did=(\d+)/)?.[1] || '—';
+    return `<div class="mapping-row"><span class="mapping-tag">${tag}</span><span class="mapping-did">DID: ${did}</span></div>`;
+  }).join('');
 }
 updateCount();
 
@@ -150,17 +182,15 @@ function handleFile(file) {
   reader.onload = function(e) {
     const lines = e.target.result.split(/\r?\n/).filter(l => l.trim());
     let ok = 0, skip = 0;
-    const newMap = {};
     for (const line of lines) {
       const sep = line.indexOf(';');
       if (sep < 1) { skip++; continue; }
       const tag = line.substring(0, sep).trim();
       const url = line.substring(sep + 1).trim();
-      if (tag && url) { newMap[tag] = url; ok++; } else { skip++; }
+      if (tag && url) { mapping[tag] = url; ok++; } else { skip++; }
     }
     const info = document.getElementById('import-status');
     if (ok > 0) {
-      Object.assign(mapping, newMap);
       updateCount();
       document.getElementById('info-import').textContent = new Date().toLocaleString('de-DE');
       info.className = 'import-status ok';
@@ -183,10 +213,8 @@ async function startCamera() {
     await scanner.start(
       { facingMode: "environment" },
       { fps: 10, qrbox: { width: 250, height: 250 } },
-      (decodedText) => {
-        handleResult(decodedText.trim());
-      },
-      () => {} // Scan-Fehler ignorieren
+      (decodedText) => { handleResult(decodedText.trim()); },
+      () => {}
     );
     active = true;
     document.getElementById('cam-btn').textContent = 'Kamera stoppen';
@@ -229,7 +257,7 @@ async function handleResult(tag) {
   document.getElementById('status').textContent = 'TAG erkannt.';
 }
 
-async function resetResult() {
+function resetResult() {
   document.getElementById('result-card').classList.add('result-hidden');
   document.getElementById('result-card').classList.remove('result-visible');
   document.getElementById('status').textContent = 'Kamera starten um Flansch-TAG zu scannen.';
