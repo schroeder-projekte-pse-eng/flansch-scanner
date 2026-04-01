@@ -21,11 +21,13 @@
     .page.active { display: block; }
     .card { background: #fff; border-radius: 12px; border: 1px solid #e0e0e0; padding: 16px; margin-bottom: 14px; }
     .card-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #999; margin-bottom: 12px; }
-    #reader { width: 100%; border-radius: 8px; overflow: hidden; background: #000; min-height: 220px; }
-    #reader video { width: 100% !important; }
-    #reader img { display: none; }
-    .btn { display: block; width: 100%; padding: 13px; border-radius: 8px; border: none; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 10px; transition: opacity 0.15s; }
-    .btn:active { opacity: 0.8; }
+    .video-wrap { position: relative; background: #000; border-radius: 8px; overflow: hidden; }
+    video { width: 100%; display: block; min-height: 240px; object-fit: cover; }
+    canvas { display: none; }
+    .scan-line { position: absolute; left: 0; right: 0; height: 2px; background: rgba(255,80,80,0.85); animation: scanmove 2s linear infinite; display: none; }
+    .scan-line.on { display: block; }
+    @keyframes scanmove { 0%{top:15%} 50%{top:82%} 100%{top:15%} }
+    .btn { display: block; width: 100%; padding: 13px; border-radius: 8px; border: none; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 10px; }
     .btn-primary { background: #1a1a2e; color: #fff; }
     .btn-stop { background: #c00; color: #fff; }
     .status { font-size: 13px; color: #777; text-align: center; margin-top: 10px; min-height: 20px; }
@@ -33,8 +35,7 @@
     .result-visible { display: block; }
     .tag-display { font-size: 26px; font-weight: 700; font-family: 'Courier New', monospace; color: #1a1a2e; margin-bottom: 4px; }
     .scan-time { font-size: 12px; color: #aaa; margin-bottom: 16px; }
-    .open-btn { display: block; width: 100%; padding: 14px; background: #1a6e3c; color: #fff; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; text-align: center; text-decoration: none; }
-    .open-btn:active { background: #145530; }
+    .open-btn { display: block; width: 100%; padding: 14px; background: #1a6e3c; color: #fff; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; text-align: center; text-decoration: none; }
     .no-match { padding: 14px; background: #fff3f3; border: 1px solid #fcc; border-radius: 8px; color: #c00; font-size: 14px; text-align: center; line-height: 1.5; }
     .import-area { border: 2px dashed #ccc; border-radius: 8px; padding: 24px 16px; text-align: center; cursor: pointer; }
     .import-area input { display: none; }
@@ -69,7 +70,11 @@
 <div class="page active" id="tab-scan">
   <div class="card">
     <div class="card-title">Kamera</div>
-    <div id="reader"></div>
+    <div class="video-wrap">
+      <video id="video" autoplay playsinline muted></video>
+      <div class="scan-line" id="scan-line"></div>
+    </div>
+    <canvas id="canvas"></canvas>
     <p class="status" id="status">Kamera starten um Flansch-TAG zu scannen.</p>
     <button class="btn btn-primary" id="cam-btn" onclick="toggleCamera()">Kamera starten</button>
   </div>
@@ -115,21 +120,23 @@
     <div class="info-row"><span class="info-key">Geladene TAGs</span><span class="info-val" id="info-count">0</span></div>
     <div class="info-row"><span class="info-key">Letzter Import</span><span class="info-val" id="info-import">—</span></div>
     <div class="info-row"><span class="info-key">Offline-fähig</span><span class="info-val">Ja (PWA)</span></div>
-    <div class="info-row"><span class="info-key">QR-Bibliothek</span><span class="info-val">ZXing</span></div>
+    <div class="info-row"><span class="info-key">QR-Bibliothek</span><span class="info-val">jsQR + Autofokus</span></div>
   </div>
 </div>
 
-<footer>Flansch QR-Scanner · EKB StoragEtzel · v2.0</footer>
+<footer>Flansch QR-Scanner · EKB StoragEtzel · v3.0</footer>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/zxing/0.19.1/zxing.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js"></script>
 <script>
 
 const mapping = {
   "23-FL-21001": "https://ekb.docuware.cloud/DocuWare/Platform/WebClient/b8a35583-b1ca-44a5-9c01-3e9475446889/Integration?fc=1acb0770-af1b-4cac-af35-387d2e5a0736&did=55&p=V"
 };
 
-let codeReader = null;
+let stream = null;
 let active = false;
+let lastTag = null;
+let animFrame = null;
 
 function updateCount() {
   const n = Object.keys(mapping).length;
@@ -180,53 +187,97 @@ async function toggleCamera() {
 
 async function startCamera() {
   try {
-    codeReader = new ZXing.BrowserQRCodeReader();
+    // Autofokus + hohe Auflösung explizit anfordern
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        focusMode: { ideal: 'continuous' },
+        advanced: [{ focusMode: 'continuous' }]
+      }
+    });
+
+    const video = document.getElementById('video');
+    video.srcObject = stream;
+    await video.play();
+
+    // Autofokus über Track-Constraints erzwingen (Android Chrome)
+    const track = stream.getVideoTracks()[0];
+    if (track && track.applyConstraints) {
+      try {
+        await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+      } catch(e) { /* nicht alle Geräte unterstützen das */ }
+    }
+
     active = true;
+    lastTag = null;
     document.getElementById('cam-btn').textContent = 'Kamera stoppen';
     document.getElementById('cam-btn').className = 'btn btn-stop';
     document.getElementById('status').textContent = 'Flansch-TAG vor die Kamera halten…';
+    document.getElementById('scan-line').classList.add('on');
+    animFrame = requestAnimationFrame(tick);
 
-    await codeReader.decodeFromConstraints(
-      { video: { facingMode: 'environment' } },
-      'reader',
-      (result, err) => {
-        if (result) {
-          handleResult(result.getText());
-        }
-      }
-    );
   } catch(e) {
     document.getElementById('status').textContent = 'Fehler: ' + e.message;
-    active = false;
   }
 }
 
 function stopCamera() {
-  if (codeReader) codeReader.reset();
+  if (animFrame) cancelAnimationFrame(animFrame);
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = null;
   active = false;
+  lastTag = null;
   document.getElementById('cam-btn').textContent = 'Kamera starten';
   document.getElementById('cam-btn').className = 'btn btn-primary';
   document.getElementById('status').textContent = 'Kamera gestoppt.';
+  document.getElementById('scan-line').classList.remove('on');
+}
+
+function tick() {
+  if (!active) return;
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+
+  if (video.readyState === video.HAVE_ENOUGH_DATA) {
+    const w = video.videoWidth;
+    const h = video.videoHeight;
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(video, 0, 0, w, h);
+    const imageData = ctx.getImageData(0, 0, w, h);
+
+    const code = jsQR(imageData.data, w, h, {
+      inversionAttempts: 'attemptBoth'
+    });
+
+    if (code && code.data.trim() !== lastTag) {
+      lastTag = code.data.trim();
+      handleResult(lastTag);
+      return;
+    }
+  }
+  animFrame = requestAnimationFrame(tick);
 }
 
 function handleResult(tag) {
   stopCamera();
-  const trimmed = tag.trim();
-  document.getElementById('tag-out').textContent = trimmed;
+  document.getElementById('tag-out').textContent = tag;
   document.getElementById('time-out').textContent = new Date().toLocaleString('de-DE');
 
   const card = document.getElementById('result-card');
   card.classList.remove('result-hidden');
   card.classList.add('result-visible');
 
-  const url = mapping[trimmed];
+  const url = mapping[tag];
   const out = document.getElementById('link-out');
   if (url) {
     out.innerHTML = '<a class="open-btn" href="' + url + '" target="_blank">Flanschpass in DocuWare öffnen ↗</a>';
   } else {
-    out.innerHTML = '<div class="no-match">Kein Flanschpass für TAG<br><strong>' + trimmed + '</strong><br>gefunden.</div>';
+    out.innerHTML = '<div class="no-match">Kein Flanschpass für TAG<br><strong>' + tag + '</strong><br>gefunden.</div>';
   }
-
   card.scrollIntoView({ behavior: 'smooth', block: 'start' });
   document.getElementById('status').textContent = 'TAG erkannt.';
 }
