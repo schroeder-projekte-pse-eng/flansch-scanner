@@ -1,8 +1,7 @@
-const CACHE = 'flansch-scanner-v1';
+const CACHE = 'flansch-scanner-v' + Date.now();
 const ASSETS = [
   './index.html',
   './manifest.json',
-  'https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js'
 ];
 
 self.addEventListener('install', e => {
@@ -21,8 +20,21 @@ self.addEventListener('activate', e => {
   self.clients.claim();
 });
 
+// Network-first: immer frisch laden, Cache nur als Fallback
 self.addEventListener('fetch', e => {
-  e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request))
-  );
+  if (e.request.url.includes('unpkg.com')) {
+    // Externe Bibliothek: Cache-first (ändert sich nicht)
+    e.respondWith(
+      caches.match(e.request).then(cached => cached || fetch(e.request).then(response => {
+        const clone = response.clone();
+        caches.open(CACHE).then(c => c.put(e.request, clone));
+        return response;
+      }))
+    );
+  } else {
+    // Eigene Dateien: immer Network-first
+    e.respondWith(
+      fetch(e.request).catch(() => caches.match(e.request))
+    );
+  }
 });
