@@ -4,45 +4,38 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#1a1a2e">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <title>Flansch QR – Debug</title>
-  <link rel="manifest" href="./manifest.json">
+  <title>Flansch QR – Debug v2</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f0f0; color: #1a1a1a; min-height: 100vh; }
+    body { font-family: -apple-system, sans-serif; background: #f0f0f0; color: #1a1a1a; }
     header { background: #1a1a2e; color: #fff; padding: 14px 16px; }
     header h1 { font-size: 16px; font-weight: 600; }
-    header p { font-size: 12px; opacity: 0.6; margin-top: 2px; }
+    header p { font-size: 11px; opacity: 0.6; margin-top: 2px; }
     .container { max-width: 560px; margin: 0 auto; padding: 14px; }
     .card { background: #fff; border-radius: 12px; border: 1px solid #e0e0e0; padding: 16px; margin-bottom: 14px; }
     .card-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #999; margin-bottom: 12px; }
-    video { width: 100%; border-radius: 8px; background: #000; display: block; min-height: 220px; object-fit: cover; }
+    video { width: 100%; border-radius: 8px; background: #000; display: block; min-height: 220px; }
     canvas { display: none; }
     .btn { display: block; width: 100%; padding: 13px; border-radius: 8px; border: none; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 10px; }
     .btn-primary { background: #1a1a2e; color: #fff; }
     .btn-stop { background: #c00; color: #fff; }
-    .status { font-size: 13px; color: #777; text-align: center; margin-top: 10px; min-height: 20px; }
-    .debug-card { display: none; }
-    .debug-card.show { display: block; }
-    .lbl { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #999; margin-bottom: 6px; margin-top: 14px; }
-    .lbl:first-child { margin-top: 0; }
-    .raw-box { font-family: 'Courier New', monospace; font-size: 20px; font-weight: 700; color: #1a1a2e; background: #f5f5f5; border-radius: 8px; padding: 12px; word-break: break-all; border: 1px solid #e0e0e0; }
-    .meta { font-size: 13px; color: #888; margin-top: 6px; }
-    .hex-box { font-family: 'Courier New', monospace; font-size: 11px; color: #555; background: #f5f5f5; border-radius: 8px; padding: 10px 12px; word-break: break-all; line-height: 1.9; border: 1px solid #e0e0e0; }
-    .match-box { padding: 12px 16px; border-radius: 8px; font-size: 15px; font-weight: 600; text-align: center; margin-top: 4px; }
-    .match-ok { background: #e8f5ee; color: #1a6e3c; border: 1px solid #b2dfc4; }
-    .match-fail { background: #fff3f3; color: #c00; border: 1px solid #fcc; }
-    .hint { font-size: 13px; color: #888; line-height: 1.6; }
-    .hint strong { color: #333; }
+    .btn-green { background: #1a6e3c; color: #fff; }
+    .status { font-size: 13px; color: #777; text-align: center; margin-top: 10px; }
+    .step { padding: 10px 14px; border-radius: 8px; margin-bottom: 8px; font-size: 14px; line-height: 1.5; }
+    .step-ok { background: #e8f5ee; color: #1a6e3c; border: 1px solid #b2dfc4; }
+    .step-fail { background: #fff3f3; color: #c00; border: 1px solid #fcc; }
+    .step-info { background: #f0f0f0; color: #333; border: 1px solid #ddd; }
+    .mono { font-family: 'Courier New', monospace; font-weight: 700; }
+    .hidden { display: none; }
   </style>
 </head>
 <body>
 <header>
-  <h1>Flansch QR-Scanner – Debug</h1>
-  <p>Zeigt exakt was der QR-Code enthält</p>
+  <h1>Flansch QR-Scanner – Debug v2</h1>
+  <p>Schritt-für-Schritt Diagnose</p>
 </header>
 <div class="container">
+
   <div class="card">
     <div class="card-title">Kamera</div>
     <video id="video" autoplay playsinline muted></video>
@@ -50,31 +43,31 @@
     <p class="status" id="status">Kamera starten und QR-Code scannen.</p>
     <button class="btn btn-primary" id="btn" onclick="toggleCamera()">Kamera starten</button>
   </div>
-  <div class="card debug-card" id="debug-card">
-    <div class="card-title">Scan-Ergebnis</div>
-    <div class="lbl">Roher QR-Inhalt (exakt wie gelesen)</div>
-    <div class="raw-box" id="raw-out">—</div>
-    <div class="meta" id="meta-out">—</div>
-    <div class="lbl">Hex-Darstellung (zeigt versteckte Zeichen)</div>
-    <div class="hex-box" id="hex-out">—</div>
-    <div class="lbl">Vergleich mit Ziel-TAG</div>
-    <div class="match-box" id="match-out">—</div>
-    <button class="btn btn-primary" style="margin-top:14px;" onclick="resetScan()">Erneut scannen</button>
+
+  <div class="card hidden" id="result-card">
+    <div class="card-title">Diagnose</div>
+    <div id="steps"></div>
+    <a id="open-link" class="btn btn-green hidden" href="#" target="_blank">Flanschpass öffnen ↗</a>
+    <button class="btn btn-primary" style="margin-top:8px;" onclick="resetScan()">Erneut scannen</button>
   </div>
-  <div class="card">
-    <div class="card-title">Hinweis</div>
-    <p class="hint">Erwarteter TAG: <strong>23-FL-21001</strong><br><br>
-    Der Hex-Block zeigt jeden Buchstaben als Zahlenwert. Versteckte Zeichen wie Leerzeichen <strong>(20)</strong> oder Zeilenumbrüche <strong>(0a / 0d)</strong> werden hier sichtbar.</p>
-  </div>
+
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js"></script>
 <script>
-const EXPECTED = "23-FL-21001";
+
+const mapping = {
+  "23-FL-21001": "https://ekb.docuware.cloud/DocuWare/Platform/WebClient/b8a35583-b1ca-44a5-9c01-3e9475446889/Integration?fc=1acb0770-af1b-4cac-af35-387d2e5a0736&did=55&p=V"
+};
+
 let stream = null, active = false, lastTag = null;
+
 async function toggleCamera() { active ? stopCamera() : await startCamera(); }
+
 async function startCamera() {
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } });
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
     document.getElementById('video').srcObject = stream;
     await document.getElementById('video').play();
     active = true; lastTag = null;
@@ -82,8 +75,11 @@ async function startCamera() {
     document.getElementById('btn').className = 'btn btn-stop';
     document.getElementById('status').textContent = 'QR-Code vor die Kamera halten…';
     requestAnimationFrame(tick);
-  } catch(e) { document.getElementById('status').textContent = 'Fehler: ' + e.message; }
+  } catch(e) {
+    document.getElementById('status').textContent = 'Fehler: ' + e.message;
+  }
 }
+
 function stopCamera() {
   if (stream) stream.getTracks().forEach(t => t.stop());
   active = false;
@@ -91,42 +87,101 @@ function stopCamera() {
   document.getElementById('btn').className = 'btn btn-primary';
   document.getElementById('status').textContent = 'Kamera gestoppt.';
 }
+
 function tick() {
   if (!active) return;
   const video = document.getElementById('video');
   const canvas = document.getElementById('canvas');
   if (video.readyState === video.HAVE_ENOUGH_DATA) {
-    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
-    if (code && code.data !== lastTag) { lastTag = code.data; showResult(code.data); }
+    if (code && code.data !== lastTag) {
+      lastTag = code.data;
+      showDiagnosis(code.data);
+    }
   }
   requestAnimationFrame(tick);
 }
-function showResult(raw) {
+
+function showDiagnosis(raw) {
   stopCamera();
-  document.getElementById('raw-out').textContent = raw;
-  document.getElementById('meta-out').textContent = 'Länge: ' + raw.length + ' Zeichen · ' + new Date().toLocaleTimeString('de-DE');
-  document.getElementById('hex-out').textContent = Array.from(raw).map(c => c.charCodeAt(0).toString(16).padStart(2,'0')).join(' ');
-  const match = document.getElementById('match-out');
-  if (raw.trim() === EXPECTED) {
-    match.className = 'match-box match-ok';
-    match.textContent = '✓ Exakte Übereinstimmung – Mapping funktioniert';
+
+  const steps = document.getElementById('steps');
+  steps.innerHTML = '';
+
+  // Schritt 1: Was wurde gelesen?
+  addStep(steps, 'ok', '① Gelesen: <span class="mono">' + escHtml(raw) + '</span><br><small>Länge: ' + raw.length + ' Zeichen</small>');
+
+  // Schritt 2: Trim
+  const trimmed = raw.trim();
+  if (trimmed !== raw) {
+    addStep(steps, 'info', '② Leerzeichen/Zeilenumbruch entfernt: <span class="mono">' + escHtml(trimmed) + '</span>');
   } else {
-    match.className = 'match-box match-fail';
-    match.textContent = '✗ Kein Match mit "' + EXPECTED + '"';
+    addStep(steps, 'ok', '② Keine führenden/nachfolgenden Leerzeichen');
   }
-  document.getElementById('debug-card').classList.add('show');
-  document.getElementById('status').textContent = 'QR erkannt.';
+
+  // Schritt 3: Mapping-Keys anzeigen
+  const keys = Object.keys(mapping);
+  addStep(steps, 'info', '③ Mapping enthält ' + keys.length + ' Einträge:<br><span class="mono">' + keys.map(escHtml).join('<br>') + '</span>');
+
+  // Schritt 4: Direkter Vergleich
+  const url = mapping[trimmed];
+  if (url) {
+    addStep(steps, 'ok', '④ Match gefunden! URL:<br><small style="word-break:break-all">' + escHtml(url.substring(0, 60)) + '…</small>');
+    const btn = document.getElementById('open-link');
+    btn.href = url;
+    btn.classList.remove('hidden');
+  } else {
+    addStep(steps, 'fail', '④ Kein Match in der Mapping-Tabelle');
+
+    // Schritt 5: Zeichenweise Vergleich mit erstem Key
+    const key = keys[0];
+    let diff = '';
+    const maxLen = Math.max(trimmed.length, key.length);
+    for (let i = 0; i < maxLen; i++) {
+      const a = trimmed.charCodeAt(i) || -1;
+      const b = key.charCodeAt(i) || -1;
+      if (a !== b) {
+        diff += 'Position ' + i + ': gelesen=<span class="mono">' + (a > 0 ? '0x' + a.toString(16) + ' (' + (trimmed[i]||'—') + ')' : '—') +
+                '</span> erwartet=<span class="mono">' + (b > 0 ? '0x' + b.toString(16) + ' (' + (key[i]||'—') + ')' : '—') + '</span><br>';
+      }
+    }
+    if (diff) {
+      addStep(steps, 'fail', '⑤ Unterschiede zu "' + escHtml(key) + '":<br>' + diff);
+    } else if (trimmed.length !== key.length) {
+      addStep(steps, 'fail', '⑤ Gleiche Zeichen aber unterschiedliche Länge: gelesen=' + trimmed.length + ' erwartet=' + key.length);
+    } else {
+      addStep(steps, 'info', '⑤ Zeichenweise identisch – unbekanntes Problem');
+    }
+  }
+
+  document.getElementById('result-card').classList.remove('hidden');
+  document.getElementById('status').textContent = 'Diagnose abgeschlossen.';
 }
+
+function addStep(container, type, html) {
+  const div = document.createElement('div');
+  div.className = 'step step-' + type;
+  div.innerHTML = html;
+  container.appendChild(div);
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
 function resetScan() {
   lastTag = null;
-  document.getElementById('debug-card').classList.remove('show');
+  document.getElementById('result-card').classList.add('hidden');
+  document.getElementById('open-link').classList.add('hidden');
+  document.getElementById('steps').innerHTML = '';
   document.getElementById('status').textContent = 'Kamera starten und QR-Code scannen.';
 }
-if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./sw.js').catch(e => console.warn('SW:', e)); }
+
 </script>
 </body>
 </html>
