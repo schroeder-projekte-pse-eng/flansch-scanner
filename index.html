@@ -4,184 +4,242 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#1a1a2e">
-  <title>Flansch QR – Debug v2</title>
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Flansch QR-Scanner</title>
+  <link rel="manifest" href="./manifest.json">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, sans-serif; background: #f0f0f0; color: #1a1a1a; }
-    header { background: #1a1a2e; color: #fff; padding: 14px 16px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f0f0; color: #1a1a1a; min-height: 100vh; }
+    header { background: #1a1a2e; color: #fff; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; }
     header h1 { font-size: 16px; font-weight: 600; }
-    header p { font-size: 11px; opacity: 0.6; margin-top: 2px; }
-    .container { max-width: 560px; margin: 0 auto; padding: 14px; }
+    #entry-count { font-size: 11px; background: rgba(255,255,255,0.15); padding: 3px 10px; border-radius: 20px; }
+    .tabs { display: flex; background: #fff; border-bottom: 1px solid #e0e0e0; }
+    .tab { flex: 1; padding: 12px; text-align: center; font-size: 14px; font-weight: 500; color: #888; cursor: pointer; border-bottom: 3px solid transparent; }
+    .tab.active { color: #1a1a2e; border-bottom-color: #1a1a2e; }
+    .page { display: none; padding: 14px; max-width: 560px; margin: 0 auto; }
+    .page.active { display: block; }
     .card { background: #fff; border-radius: 12px; border: 1px solid #e0e0e0; padding: 16px; margin-bottom: 14px; }
     .card-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #999; margin-bottom: 12px; }
-    video { width: 100%; border-radius: 8px; background: #000; display: block; min-height: 220px; }
-    canvas { display: none; }
-    .btn { display: block; width: 100%; padding: 13px; border-radius: 8px; border: none; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 10px; }
+    #reader { width: 100%; border-radius: 8px; overflow: hidden; background: #000; min-height: 220px; }
+    #reader video { width: 100% !important; }
+    #reader img { display: none; }
+    .btn { display: block; width: 100%; padding: 13px; border-radius: 8px; border: none; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 10px; transition: opacity 0.15s; }
+    .btn:active { opacity: 0.8; }
     .btn-primary { background: #1a1a2e; color: #fff; }
     .btn-stop { background: #c00; color: #fff; }
-    .btn-green { background: #1a6e3c; color: #fff; }
-    .status { font-size: 13px; color: #777; text-align: center; margin-top: 10px; }
-    .step { padding: 10px 14px; border-radius: 8px; margin-bottom: 8px; font-size: 14px; line-height: 1.5; }
-    .step-ok { background: #e8f5ee; color: #1a6e3c; border: 1px solid #b2dfc4; }
-    .step-fail { background: #fff3f3; color: #c00; border: 1px solid #fcc; }
-    .step-info { background: #f0f0f0; color: #333; border: 1px solid #ddd; }
-    .mono { font-family: 'Courier New', monospace; font-weight: 700; }
-    .hidden { display: none; }
+    .status { font-size: 13px; color: #777; text-align: center; margin-top: 10px; min-height: 20px; }
+    .result-hidden { display: none; }
+    .result-visible { display: block; }
+    .tag-display { font-size: 26px; font-weight: 700; font-family: 'Courier New', monospace; color: #1a1a2e; margin-bottom: 4px; }
+    .scan-time { font-size: 12px; color: #aaa; margin-bottom: 16px; }
+    .open-btn { display: block; width: 100%; padding: 14px; background: #1a6e3c; color: #fff; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; text-align: center; text-decoration: none; }
+    .open-btn:active { background: #145530; }
+    .no-match { padding: 14px; background: #fff3f3; border: 1px solid #fcc; border-radius: 8px; color: #c00; font-size: 14px; text-align: center; line-height: 1.5; }
+    .import-area { border: 2px dashed #ccc; border-radius: 8px; padding: 24px 16px; text-align: center; cursor: pointer; }
+    .import-area input { display: none; }
+    .import-area strong { font-size: 15px; color: #333; display: block; margin-bottom: 4px; }
+    .import-area p { font-size: 13px; color: #888; }
+    .import-status { margin-top: 10px; font-size: 13px; padding: 10px 14px; border-radius: 8px; background: #f5f5f5; color: #555; }
+    .import-status.ok { background: #e8f5ee; color: #1a6e3c; }
+    .import-status.err { background: #fff3f3; color: #c00; }
+    .format-box { background: #f5f5f5; border-radius: 8px; padding: 12px 14px; font-family: 'Courier New', monospace; font-size: 12px; color: #444; line-height: 2; margin-top: 8px; word-break: break-all; }
+    .divider { height: 1px; background: #eee; margin: 14px 0; }
+    .info-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+    .info-row:last-child { border-bottom: none; }
+    .info-key { color: #777; }
+    .info-val { font-weight: 500; color: #1a1a2e; }
+    footer { text-align: center; font-size: 11px; color: #ccc; padding: 20px 16px; }
   </style>
 </head>
 <body>
-<header>
-  <h1>Flansch QR-Scanner – Debug v2</h1>
-  <p>Schritt-für-Schritt Diagnose</p>
-</header>
-<div class="container">
 
+<header>
+  <h1>Flansch QR-Scanner</h1>
+  <span id="entry-count">0 TAGs</span>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('scan', this)">Scanner</div>
+  <div class="tab" onclick="showTab('import', this)">Mapping</div>
+  <div class="tab" onclick="showTab('info', this)">Info</div>
+</div>
+
+<!-- SCANNER -->
+<div class="page active" id="tab-scan">
   <div class="card">
     <div class="card-title">Kamera</div>
-    <video id="video" autoplay playsinline muted></video>
-    <canvas id="canvas"></canvas>
-    <p class="status" id="status">Kamera starten und QR-Code scannen.</p>
-    <button class="btn btn-primary" id="btn" onclick="toggleCamera()">Kamera starten</button>
+    <div id="reader"></div>
+    <p class="status" id="status">Kamera starten um Flansch-TAG zu scannen.</p>
+    <button class="btn btn-primary" id="cam-btn" onclick="toggleCamera()">Kamera starten</button>
   </div>
 
-  <div class="card hidden" id="result-card">
-    <div class="card-title">Diagnose</div>
-    <div id="steps"></div>
-    <a id="open-link" class="btn btn-green hidden" href="#" target="_blank">Flanschpass öffnen ↗</a>
-    <button class="btn btn-primary" style="margin-top:8px;" onclick="resetScan()">Erneut scannen</button>
+  <div class="card result-hidden" id="result-card">
+    <div class="card-title">Erkannter TAG</div>
+    <div class="tag-display" id="tag-out">—</div>
+    <div class="scan-time" id="time-out">—</div>
+    <div id="link-out"></div>
+    <button class="btn" style="background:#eee;color:#333;margin-top:12px;" onclick="resetResult()">Neuer Scan</button>
   </div>
-
 </div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js"></script>
+
+<!-- MAPPING -->
+<div class="page" id="tab-import">
+  <div class="card">
+    <div class="card-title">CSV-Datei importieren</div>
+    <label class="import-area">
+      <input type="file" id="csv-input" accept=".csv,.txt" onchange="handleFile(this.files[0])">
+      <strong>CSV-Datei auswählen</strong>
+      <p>Format: TAG;URL — eine Zeile pro Flansch</p>
+    </label>
+    <div class="import-status" id="import-status">
+      Noch keine Datei geladen. Testweise ist <strong>23-FL-21001</strong> bereits hinterlegt.
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">CSV-Format</div>
+    <div class="format-box">
+      23-FL-21001;https://ekb.docuware.cloud/...<br>
+      23-FL-21002;https://ekb.docuware.cloud/...<br>
+      23-FL-31001;https://ekb.docuware.cloud/...
+    </div>
+    <div class="divider"></div>
+    <p style="font-size:13px;color:#666;">Export aus Excel: <strong>Speichern unter → CSV (Trennzeichen-getrennt)</strong></p>
+  </div>
+</div>
+
+<!-- INFO -->
+<div class="page" id="tab-info">
+  <div class="card">
+    <div class="card-title">App-Status</div>
+    <div class="info-row"><span class="info-key">Geladene TAGs</span><span class="info-val" id="info-count">0</span></div>
+    <div class="info-row"><span class="info-key">Letzter Import</span><span class="info-val" id="info-import">—</span></div>
+    <div class="info-row"><span class="info-key">Offline-fähig</span><span class="info-val">Ja (PWA)</span></div>
+    <div class="info-row"><span class="info-key">QR-Bibliothek</span><span class="info-val">ZXing</span></div>
+  </div>
+</div>
+
+<footer>Flansch QR-Scanner · EKB StoragEtzel · v2.0</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/zxing/0.19.1/zxing.min.js"></script>
 <script>
 
 const mapping = {
   "23-FL-21001": "https://ekb.docuware.cloud/DocuWare/Platform/WebClient/b8a35583-b1ca-44a5-9c01-3e9475446889/Integration?fc=1acb0770-af1b-4cac-af35-387d2e5a0736&did=55&p=V"
 };
 
-let stream = null, active = false, lastTag = null;
+let codeReader = null;
+let active = false;
 
-async function toggleCamera() { active ? stopCamera() : await startCamera(); }
+function updateCount() {
+  const n = Object.keys(mapping).length;
+  document.getElementById('entry-count').textContent = n + ' TAGs';
+  document.getElementById('info-count').textContent = n;
+}
+updateCount();
+
+function showTab(name, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  el.classList.add('active');
+}
+
+function handleFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const lines = e.target.result.split(/\r?\n/).filter(l => l.trim());
+    let ok = 0, skip = 0;
+    const newMap = {};
+    for (const line of lines) {
+      const sep = line.indexOf(';');
+      if (sep < 1) { skip++; continue; }
+      const tag = line.substring(0, sep).trim();
+      const url = line.substring(sep + 1).trim();
+      if (tag && url) { newMap[tag] = url; ok++; } else { skip++; }
+    }
+    const info = document.getElementById('import-status');
+    if (ok > 0) {
+      Object.assign(mapping, newMap);
+      updateCount();
+      document.getElementById('info-import').textContent = new Date().toLocaleString('de-DE');
+      info.className = 'import-status ok';
+      info.innerHTML = '✓ ' + ok + ' TAGs geladen' + (skip > 0 ? ' · ' + skip + ' übersprungen' : '');
+    } else {
+      info.className = 'import-status err';
+      info.textContent = 'Keine gültigen Einträge. Format prüfen: TAG;URL';
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+async function toggleCamera() {
+  active ? stopCamera() : await startCamera();
+}
 
 async function startCamera() {
   try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
-    });
-    document.getElementById('video').srcObject = stream;
-    await document.getElementById('video').play();
-    active = true; lastTag = null;
-    document.getElementById('btn').textContent = 'Kamera stoppen';
-    document.getElementById('btn').className = 'btn btn-stop';
-    document.getElementById('status').textContent = 'QR-Code vor die Kamera halten…';
-    requestAnimationFrame(tick);
+    codeReader = new ZXing.BrowserQRCodeReader();
+    active = true;
+    document.getElementById('cam-btn').textContent = 'Kamera stoppen';
+    document.getElementById('cam-btn').className = 'btn btn-stop';
+    document.getElementById('status').textContent = 'Flansch-TAG vor die Kamera halten…';
+
+    await codeReader.decodeFromConstraints(
+      { video: { facingMode: 'environment' } },
+      'reader',
+      (result, err) => {
+        if (result) {
+          handleResult(result.getText());
+        }
+      }
+    );
   } catch(e) {
     document.getElementById('status').textContent = 'Fehler: ' + e.message;
+    active = false;
   }
 }
 
 function stopCamera() {
-  if (stream) stream.getTracks().forEach(t => t.stop());
+  if (codeReader) codeReader.reset();
   active = false;
-  document.getElementById('btn').textContent = 'Kamera starten';
-  document.getElementById('btn').className = 'btn btn-primary';
+  document.getElementById('cam-btn').textContent = 'Kamera starten';
+  document.getElementById('cam-btn').className = 'btn btn-primary';
   document.getElementById('status').textContent = 'Kamera gestoppt.';
 }
 
-function tick() {
-  if (!active) return;
-  const video = document.getElementById('video');
-  const canvas = document.getElementById('canvas');
-  if (video.readyState === video.HAVE_ENOUGH_DATA) {
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
-    if (code && code.data !== lastTag) {
-      lastTag = code.data;
-      showDiagnosis(code.data);
-    }
-  }
-  requestAnimationFrame(tick);
-}
-
-function showDiagnosis(raw) {
+function handleResult(tag) {
   stopCamera();
+  const trimmed = tag.trim();
+  document.getElementById('tag-out').textContent = trimmed;
+  document.getElementById('time-out').textContent = new Date().toLocaleString('de-DE');
 
-  const steps = document.getElementById('steps');
-  steps.innerHTML = '';
+  const card = document.getElementById('result-card');
+  card.classList.remove('result-hidden');
+  card.classList.add('result-visible');
 
-  // Schritt 1: Was wurde gelesen?
-  addStep(steps, 'ok', '① Gelesen: <span class="mono">' + escHtml(raw) + '</span><br><small>Länge: ' + raw.length + ' Zeichen</small>');
-
-  // Schritt 2: Trim
-  const trimmed = raw.trim();
-  if (trimmed !== raw) {
-    addStep(steps, 'info', '② Leerzeichen/Zeilenumbruch entfernt: <span class="mono">' + escHtml(trimmed) + '</span>');
-  } else {
-    addStep(steps, 'ok', '② Keine führenden/nachfolgenden Leerzeichen');
-  }
-
-  // Schritt 3: Mapping-Keys anzeigen
-  const keys = Object.keys(mapping);
-  addStep(steps, 'info', '③ Mapping enthält ' + keys.length + ' Einträge:<br><span class="mono">' + keys.map(escHtml).join('<br>') + '</span>');
-
-  // Schritt 4: Direkter Vergleich
   const url = mapping[trimmed];
+  const out = document.getElementById('link-out');
   if (url) {
-    addStep(steps, 'ok', '④ Match gefunden! URL:<br><small style="word-break:break-all">' + escHtml(url.substring(0, 60)) + '…</small>');
-    const btn = document.getElementById('open-link');
-    btn.href = url;
-    btn.classList.remove('hidden');
+    out.innerHTML = '<a class="open-btn" href="' + url + '" target="_blank">Flanschpass in DocuWare öffnen ↗</a>';
   } else {
-    addStep(steps, 'fail', '④ Kein Match in der Mapping-Tabelle');
-
-    // Schritt 5: Zeichenweise Vergleich mit erstem Key
-    const key = keys[0];
-    let diff = '';
-    const maxLen = Math.max(trimmed.length, key.length);
-    for (let i = 0; i < maxLen; i++) {
-      const a = trimmed.charCodeAt(i) || -1;
-      const b = key.charCodeAt(i) || -1;
-      if (a !== b) {
-        diff += 'Position ' + i + ': gelesen=<span class="mono">' + (a > 0 ? '0x' + a.toString(16) + ' (' + (trimmed[i]||'—') + ')' : '—') +
-                '</span> erwartet=<span class="mono">' + (b > 0 ? '0x' + b.toString(16) + ' (' + (key[i]||'—') + ')' : '—') + '</span><br>';
-      }
-    }
-    if (diff) {
-      addStep(steps, 'fail', '⑤ Unterschiede zu "' + escHtml(key) + '":<br>' + diff);
-    } else if (trimmed.length !== key.length) {
-      addStep(steps, 'fail', '⑤ Gleiche Zeichen aber unterschiedliche Länge: gelesen=' + trimmed.length + ' erwartet=' + key.length);
-    } else {
-      addStep(steps, 'info', '⑤ Zeichenweise identisch – unbekanntes Problem');
-    }
+    out.innerHTML = '<div class="no-match">Kein Flanschpass für TAG<br><strong>' + trimmed + '</strong><br>gefunden.</div>';
   }
 
-  document.getElementById('result-card').classList.remove('hidden');
-  document.getElementById('status').textContent = 'Diagnose abgeschlossen.';
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById('status').textContent = 'TAG erkannt.';
 }
 
-function addStep(container, type, html) {
-  const div = document.createElement('div');
-  div.className = 'step step-' + type;
-  div.innerHTML = html;
-  container.appendChild(div);
+function resetResult() {
+  document.getElementById('result-card').classList.add('result-hidden');
+  document.getElementById('result-card').classList.remove('result-visible');
+  document.getElementById('status').textContent = 'Kamera starten um Flansch-TAG zu scannen.';
 }
 
-function escHtml(str) {
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(e => console.warn('SW:', e));
 }
-
-function resetScan() {
-  lastTag = null;
-  document.getElementById('result-card').classList.add('hidden');
-  document.getElementById('open-link').classList.add('hidden');
-  document.getElementById('steps').innerHTML = '';
-  document.getElementById('status').textContent = 'Kamera starten und QR-Code scannen.';
-}
-
 </script>
 </body>
 </html>
